@@ -88,11 +88,14 @@ impl HotkeyListener for EvdevListener {
             .ok_or_else(|| HotkeyError::StartFailed("evtest 无标准输出".to_string()))?;
 
         let (tx, rx) = channel::<HotkeyEvent>();
+        let expected_code = self.evdev_code;
         std::thread::Builder::new()
             .name("freetex-evtest".into())
             // ChildStdout 只实现 Read，这里包 BufReader 再进解析线程
             // ChildStdout implements only Read; wrap in a BufReader for the parser thread
-            .spawn(move || parse_evtest_stream(BufReader::new(stdout), tx))
+            .spawn(move || {
+                parse_evtest_stream(BufReader::new(stdout), expected_code, tx)
+            })
             .map_err(|e| HotkeyError::StartFailed(format!("解析线程启动失败：{e}")))?;
 
         self.child = Some(child);
@@ -110,9 +113,10 @@ impl Drop for EvdevListener {
     }
 }
 
-/// 解析 evtest 事件流：`type 1 (EV_KEY) ... value 1`。
-/// Parses the evtest stream: `type 1 (EV_KEY) ... value 1`.
-fn parse_evtest_stream<R: BufRead>(reader: R, tx: Sender<HotkeyEvent>) {
+/// 解析 evtest 事件流：`type 1 (EV_KEY) ... value 1`，只转发配置键的事件。
+/// Parses the evtest stream (`type 1 (EV_KEY) ... value 1`), forwarding only the
+/// configured key's events.
+fn parse_evtest_stream<R: BufRead>(reader: R, expected_code: u32, tx: Sender<HotkeyEvent>) {
     for line in reader.lines() {
         let Ok(line) = line else { break };
         if !line.contains("EV_KEY") {
@@ -125,15 +129,11 @@ fn parse_evtest_stream<R: BufRead>(reader: R, tx: Sender<HotkeyEvent>) {
             Some("0") => false,
             _ => continue,
         };
-        // 只上报支持清单内的键码，其余键静默忽略
-        // only forward codes inside the supported list; others are ignored
-        let Some(code) = extract_code(&line) else {
+        // 只转发配置键的事件，其余键静默忽略
+        // forward only the configured key; everything else is ignored
+        if extract_code(&line) != Some(expected_code) {
             continue;
-        };
-        let Some(name) = keymap::name_from_evdev(code) else {
-            continue;
-        };
-        let _ = name;
+        }
         if tx.send(HotkeyEvent { pressed }).is_err() {
             break;
         }
@@ -160,17 +160,28 @@ mod tests {
     }
 
     #[test]
-    fn parse_stream_forwards_supported_down_events() {
+    fn parse_stream_forwards_only_configured_key() {
         let (tx, rx) = channel();
         let input = "Event: time 1.0, type 1 (EV_KEY), code 66 (KEY_F9), value 1\n\
                      Event: time 1.1, type 1 (EV_KEY), code 30 (KEY_A), value 1\n\
-                     Event: time 1.2, type 1 (EV_KEY), code 66 (KEY_F9), value 0\n";
-        parse_evtest_stream(input.as_bytes(), tx);
+                     Event: time 1.2, type 1 (EV_KEY), code 66 (KEY_F9), value 2\n\
+                     Event: time 1.3, type 1 (EV_KEY), code 66 (KEY_F9), value 0\n";
+        // 配置键为 F9（evdev 66）：只有 F9 的按下/松开被转发
+        // configured key is F9 (evdev 66): only F9 down/up get forwarded
+        parse_evtest_stream(input.as_bytes(), 66, tx);
         assert_eq!(rx.recv().unwrap(), HotkeyEvent { pressed: true });
-        // KEY_A 不在支持清单里，不应转发
-        // KEY_A is not in the supported list and must not be forwarded
         assert_eq!(rx.recv().unwrap(), HotkeyEvent { pressed: false });
-        assert!(rx.recv().is_err(), "通道应已关闭");
+        assert!(rx.recv().is_err(), "KEY_A 与重复事件不应转发");
+    }
+
+    #[test]
+    fn parse_stream_ignores_other_supported_keys() {
+        let (tx, rx) = channel();
+        let input = "Event: time 1.0, type 1 (EV_KEY), code 100 (KEY_RIGHTALT), value 1\n";
+        // 配置键为 F9，右 Alt 按下不应触发
+        // configured key is F9; right-Alt presses must not trigger
+        parse_evtest_stream(input.as_bytes(), 66, tx);
+        assert!(rx.recv().is_err(), "非配置键不应转发");
     }
 
     #[test]
