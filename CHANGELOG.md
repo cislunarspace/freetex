@@ -2,6 +2,18 @@
 
 本文件记录 freetex 的显著变更。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循语义化版本。
 
+## Unreleased
+
+### 新增
+
+- **Android 支持**：相册选图 → 本地离线识别 → 复制，与桌面共用识别链路；移动端布局（底部导航、单列），无托盘/热键/选区截图/应用内更新。
+- Android 发布矩阵：`release.yml` 构建签名 APK（arm64-v8a，onnxruntime 静态链接）挂 Release 页。
+
+### 变更
+
+- reqwest 切 rustls（Android 交叉编译不再依赖 openssl，桌面行为不变）。
+- gen/android 工程入库（含签名配置），签名走 `TAURI_ANDROID_KEYSTORE_*` 环境变量。
+
 ## v1.0.0 - 2026-08-31
 
 首个正式版本：SimpleTex 核心场景的本地离线替代。

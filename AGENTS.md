@@ -30,7 +30,7 @@
 
 ## 项目概览
 
-**freetex** 是开源桌面公式识别工具（SimpleTex 的本地离线替代）：截图 / 粘贴 / 上传图片，用 **LaTeX-OCR（pix2tex）ONNX 模型**（RapidLaTeXOCR 转换版）在本地识别为 LaTeX，结果自动复制并展示，支持 KaTeX 实时预览、LaTeX / `$…$` / `$$…$$` / MathML(Word) 多格式复制、本地历史记录。技术架构移植自 altgo（Tauri 2 + React 18，核心逻辑不 import Tauri，平台能力与引擎全部藏在 trait seam 后）。
+**freetex** 是开源公式识别工具（SimpleTex 的本地离线替代）：桌面截图 / 粘贴 / 上传、移动端相册选图，用 **LaTeX-OCR（pix2tex）ONNX 模型**在本地识别为 LaTeX，结果自动复制并展示，支持 KaTeX 实时预览、LaTeX / `$…$` / `$$…$$` / MathML(Word) 多格式复制、本地历史记录。技术架构移植自 altgo（Tauri 2 + React 18，核心逻辑不 import Tauri，平台能力与引擎全部藏在 trait seam 后），桌面（Windows/Linux）与 Android 共用同一识别链路。
 
 ## 构建与测试命令
 
@@ -47,6 +47,12 @@ cd frontend && npm install && npm run build
 # Tauri GUI
 cargo tauri dev        # 开发（需先 npm install）
 cargo tauri build      # 生产构建
+
+# Android（需 JDK17+、ANDROID_HOME、NDK_HOME，见 .dev/android-env.sh；tauri CLI 走 npx --prefix frontend）
+# Android (needs JDK17+, ANDROID_HOME, NDK_HOME; see .dev/android-env.sh; tauri CLI via npx --prefix frontend)
+npx --prefix frontend tauri android init   # 仅首次（gen/android 已入库，无需再跑）
+npx --prefix frontend tauri android build --apk --target aarch64   # 产物在 gen/android/app/build/outputs/apk
+# 模拟器验证需 x86_64 时额外导出 ORT_LIB_LOCATION=.dev/ort-aar/jni/x86_64 与 ORT_PREFER_DYNAMIC_LINK=1
 
 make build / test / fmt / lint / run / clean
 ```
@@ -100,13 +106,17 @@ Hotkey Listener ─┐
 
 - **ort 2.0.0-rc.13**：`Session::run(&mut self)` 需要可变引用且 Session 不可 Clone → 会话包 `Mutex`；`session.inputs()` 是**方法**返回 `&[Outlet]`，名字取 `outlet.name()`；输出提取用 `try_extract_array::<f32>()` 返回 `ndarray::ArrayViewD`；`inputs!` 宏直接返回值不返回 Result。
 - **推理流程**（RapidLaTeXOCR master）：预处理 mean=0.7931 std=0.1738；pad 裁剪文字外接框并对齐 32；max 672×192 min 32×32；BOS=1 EOS=2，max_seq_len=512；decoder 每步喂全序列（无 KV cache）取最后一位 logits；top-k=10% 词表 + 温度 1e-5（等价贪心）。
-- 模型 SHA-256 与下载地址在 `model.rs` 常量里；模型放 `<config>/freetex/models/latex-ocr/`。
+- 模型 SHA-256 与下载地址在 `model.rs` 常量里；模型放 `<data>/freetex/models/latex-ocr/`（Android 上 `dirs::config_dir()` 不可用，由 lib.rs setup 注入 Tauri 解析的目录）。
+- **Android 差异**：托盘、全局热键、选区截图、单实例、应用内更新均不存在，全部 `cfg(not(target_os = "android"))` 门控；剪贴板换 tauri-plugin-clipboard-manager（copy_html 降级纯文本）；`lib.rs` 的 `run()` 必须带 `tauri::mobile_entry_point`，否则 so 缺 JNI 入口，CLI 校验直接报错。
+- **ort 与 Android**：aarch64-linux-android 有预编译库（静态链接 onnxruntime，APK 只需带 libc++_shared.so）；**x86_64 没有**，模拟器验证需从 Maven 的 onnxruntime-android AAR 提 so，用 `ORT_LIB_LOCATION` + `ORT_PREFER_DYNAMIC_LINK=1` 动态链接，且 jniLibs 要手动放 libonnxruntime.so（aarch64 正式构建不受影响）。
 
 ## 发布（1.0.0 起）
 
-打 tag `v*` 推送触发 `release.yml`：校验（validate-release.sh，含 updater endpoint 与仓库一致性检查）→ 双平台测试 → Linux x64/arm64（deb/rpm/AppImage）+ Windows x64/arm64（NSIS/MSI）构建（`TAURI_SIGNING_PRIVATE_KEY` 签名 updater 产物）→ 合并 latest.json（merge-updater-json.sh）→ GitHub Release（含 checksums.txt）。
+打 tag `v*` 推送触发 `release.yml`：校验（validate-release.sh，含 updater endpoint 与仓库一致性检查）→ 双平台测试 → Linux x64/arm64（deb/rpm/AppImage）+ Windows x64/arm64（NSIS/MSI）+ Android arm64（签名 APK）构建（`TAURI_SIGNING_PRIVATE_KEY` 签名 updater 产物）→ 合并 latest.json（merge-updater-json.sh）→ GitHub Release（含 checksums.txt）。
 
-**发布前必改**：`tauri.conf.json` 里 updater `endpoints` 与 README 徽章的 `cislunarspace/freetex` 换成实际仓库（validate 脚本会拦）。GitHub secrets 需配 `TAURI_SIGNING_PRIVATE_KEY`（`~/.tauri/freetex-updater.key` 内容）与 `TAURI_KEY_PASSWORD`（本密钥为空串）。私钥丢失则无法再发更新。
+**发布前必改**：`tauri.conf.json` 里 updater `endpoints` 与 README 徽章的 `cislunarspace/freetex` 换成实际仓库（validate 脚本会拦）。GitHub secrets 需配 `TAURI_SIGNING_PRIVATE_KEY`（`~/.tauri/freetex-updater.key` 内容）与 `TAURI_KEY_PASSWORD`（本密钥为空串）；Android 另需 `ANDROID_KEYSTORE_BASE64`（keystore 的 base64）与 `ANDROID_KEYSTORE_PASSWORD`。私钥丢失则无法再发更新；Android keystore 丢失则无法向已装用户推更新。
+
+**Android 发布说明**：签名配置在 `src-tauri/gen/android/app/build.gradle.kts`（读四件套环境变量），keystore 本地在 `.dev/android/`（不入库，密码在 keystore.env）；gen/android 整个入库，人工改动不会丢。移动端无应用内更新，APK 直接挂 Release 页。
 
 ## 测试说明
 

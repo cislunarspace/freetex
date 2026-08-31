@@ -11,7 +11,7 @@
 [![Version](https://img.shields.io/github/v/release/cislunarspace/freetex)](https://github.com/cislunarspace/freetex/releases)
 [![Downloads](https://img.shields.io/github/downloads/cislunarspace/freetex/total)](https://github.com/cislunarspace/freetex/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-blue)](https://github.com/cislunarspace/freetex/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20Android-blue)](https://github.com/cislunarspace/freetex/releases)
 
 **English** | [简体中文](README.zh-CN.md)
 
@@ -29,6 +29,7 @@
 |---|---|
 | Windows x64 / arm64 | `*-setup.exe` 或 `.msi` |
 | Linux x64 / arm64 | `.deb` / `.rpm` / `.AppImage`（Ubuntu 22.04 / 24.04 / 26.04 及同版本发行版） |
+| Android arm64 | `.apk`（相册选图，本地离线识别） |
 
 安装后首次启动，到 **设置** 页下载识别模型（约 180 MB，仅需一次）。
 
