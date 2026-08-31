@@ -10,6 +10,19 @@
 #include <stdlib.h>
 #include <inttypes.h>
 
+/* pyke 的 aarch64 预编译库还引用 __cxa_call_terminate（GCC 12+ 的 libstdc++
+ * 才导出；Ubuntu 22.04 是 GCC 11）。该符号只在异常终止路径被调用，这里给出
+ * abort 实现以满足链接；正常运行不会触达。
+ *
+ * pyke's aarch64 prebuilts also reference __cxa_call_terminate (exported only
+ * by GCC 12+ libstdc++; Ubuntu 22.04 ships GCC 11). It sits on the abnormal
+ * termination path only; an abort() implementation satisfies the linker and
+ * is never reached in normal operation. */
+void __cxa_call_terminate(void *exc_ptr_in_handler) {
+    (void)exc_ptr_in_handler;
+    abort();
+}
+
 /* 防止在 glibc ≥2.38 上编译本文件时，经典名被宏重定向成 __isoc23_* 造成自递归 */
 /* prevent the classic names from being macro-redirected into __isoc23_* (which
  * would make these definitions recurse) when built against glibc ≥2.38 */

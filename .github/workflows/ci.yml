@@ -54,4 +54,4 @@ jobs:
       - name: 单元测试
         run: cargo test --manifest-path=src-tauri/Cargo.toml --lib
       - name: 构建 NSIS 安装包
-        run: cargo tauri build --bundles nsis
+        run: npm --prefix frontend exec -- tauri build --bundles nsis

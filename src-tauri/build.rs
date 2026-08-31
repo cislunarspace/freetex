@@ -6,7 +6,15 @@ fn main() {
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
     if target_os == "linux" {
         println!("cargo:rerun-if-changed=c/isoc23_shim.c");
-        cc::Build::new().file("c/isoc23_shim.c").compile("freetex_isoc23_shim");
+        // +whole-archive：GNU ld（aarch64 默认）按序拉静态档成员，顺序敏感；
+        // 整档并入保证转发函数无条件参与链接（体积可忽略）。
+        // +whole-archive: GNU ld (default on aarch64) pulls archive members by
+        // order; including the whole (tiny) archive makes the forwarding
+        // definitions order-independent.
+        cc::Build::new()
+            .file("c/isoc23_shim.c")
+            .link_lib_modifier("+whole-archive")
+            .compile("freetex_isoc23_shim");
     }
     tauri_build::build()
 }

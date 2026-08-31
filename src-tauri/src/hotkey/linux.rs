@@ -93,9 +93,7 @@ impl HotkeyListener for EvdevListener {
             .name("freetex-evtest".into())
             // ChildStdout 只实现 Read，这里包 BufReader 再进解析线程
             // ChildStdout implements only Read; wrap in a BufReader for the parser thread
-            .spawn(move || {
-                parse_evtest_stream(BufReader::new(stdout), expected_code, tx)
-            })
+            .spawn(move || parse_evtest_stream(BufReader::new(stdout), expected_code, tx))
             .map_err(|e| HotkeyError::StartFailed(format!("解析线程启动失败：{e}")))?;
 
         self.child = Some(child);
