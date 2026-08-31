@@ -14,6 +14,7 @@ use image::RgbaImage;
 
 /// 抓取全局物理坐标矩形区域。
 /// Captures the rectangle at global physical coordinates.
+#[cfg(not(target_os = "android"))]
 pub fn capture_rect(x: i32, y: i32, w: u32, h: u32) -> Result<RgbaImage, CaptureError> {
     if w == 0 || h == 0 {
         return Err(CaptureError::Capture("选区宽高为 0".to_string()));
@@ -54,6 +55,7 @@ pub fn capture_rect(x: i32, y: i32, w: u32, h: u32) -> Result<RgbaImage, Capture
 
 /// 找到包含该点的显示器。
 /// Finds the monitor containing the point.
+#[cfg(not(target_os = "android"))]
 fn find_monitor(monitors: &[screenshots::Screen], x: i32, y: i32) -> Option<screenshots::Screen> {
     monitors
         .iter()
@@ -76,4 +78,12 @@ mod tests {
         assert!(capture_rect(0, 0, 0, 100).is_err());
         assert!(capture_rect(0, 0, 100, 0).is_err());
     }
+}
+
+/// Android 无跨应用截屏，选区任务不会出现；保留符号供流水线分支引用。
+/// Android has no cross-app screen capture; snip jobs never occur. The symbol
+/// stays so the pipeline branch keeps compiling.
+#[cfg(target_os = "android")]
+pub fn capture_rect(_x: i32, _y: i32, _w: u32, _h: u32) -> Result<RgbaImage, CaptureError> {
+    Err(CaptureError::Capture("移动端不支持屏幕捕获".to_string()))
 }

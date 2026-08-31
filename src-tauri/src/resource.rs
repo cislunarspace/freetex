@@ -3,6 +3,7 @@
 //! Path and thread-count helpers.
 
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 /// 展开 `~` 为用户主目录；其余原样返回。
 /// Expands `~` to the home directory; other paths pass through unchanged.
@@ -37,9 +38,24 @@ pub fn available_cores() -> usize {
         .unwrap_or(1)
 }
 
+/// Android 上 `dirs::config_dir()` 不可用，由 lib.rs setup 用 Tauri 路径解析器
+/// 注入；桌面不注入，保持既有路径不变。
+/// On Android `dirs::config_dir()` is unavailable, so lib.rs setup injects the
+/// dir via the Tauri path resolver; desktop skips injection to keep paths stable.
+static ANDROID_DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
+
+/// 注入 Android 数据目录（仅 Android 启动时调用一次）。
+/// Injects the Android data dir (called once at startup on Android only).
+pub fn set_data_dir(dir: PathBuf) {
+    let _ = ANDROID_DATA_DIR.set(dir);
+}
+
 /// 应用数据目录（配置、历史、模型的根）。
 /// App data directory (root for config, history, and models).
 pub fn app_data_dir() -> PathBuf {
+    if let Some(dir) = ANDROID_DATA_DIR.get() {
+        return dir.clone();
+    }
     dirs::config_dir()
         .unwrap_or_else(|| PathBuf::from("."))
         .join("freetex")

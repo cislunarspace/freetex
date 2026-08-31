@@ -13,10 +13,12 @@ use crate::config_store::ConfigStore;
 use crate::engine::Recognizer;
 use crate::error::FatalError;
 use crate::history::{HistoryEntry, HistoryStore};
+#[cfg(not(target_os = "android"))]
 use crate::hotkey_manager::HotkeyManager;
 use crate::model;
 use crate::pipeline::Job;
 use crate::pipeline_controller::PipelineController;
+#[cfg(not(target_os = "android"))]
 use crate::snip::{SnipManager, SnipRect};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
@@ -101,6 +103,20 @@ pub fn get_config(store: State<'_, Arc<ConfigStore>>) -> Result<ConfigDto, Strin
     Ok(store.get().into())
 }
 
+/// 应用补丁并返回（旧配置，新配置）；桌面壳再做快捷键重建。
+/// Applies the patch and returns (old, new); the desktop wrapper also rebuilds hotkeys.
+fn apply_config_patch(
+    store: &State<'_, Arc<ConfigStore>>,
+    patch: &ConfigDto,
+) -> Result<(Config, Config), String> {
+    let previous = store.get();
+    let updated: Config = store
+        .apply_patch(&|config| patch.apply_to(config))
+        .map_err(|e| e.to_string())?;
+    Ok((previous, updated))
+}
+
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn save_config(
     app: AppHandle,
@@ -108,10 +124,7 @@ pub fn save_config(
     hotkey: State<'_, HotkeyManager>,
     patch: ConfigDto,
 ) -> Result<ConfigDto, String> {
-    let previous = store.get();
-    let updated: Config = store
-        .apply_patch(&|config| patch.apply_to(config))
-        .map_err(|e| e.to_string())?;
+    let (previous, updated) = apply_config_patch(&store, &patch)?;
 
     // 快捷键变化重建监听器；其余配置重启流水线（引擎懒加载，代价低）
     // rebuild the listener on hotkey change; restart the pipeline otherwise
@@ -124,22 +137,59 @@ pub fn save_config(
     Ok(updated.into())
 }
 
+/// Android 无全局快捷键，save_config 只需落盘 + 重启流水线。
+/// Android has no global hotkeys; save_config only persists and restarts the pipeline.
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn save_config(
+    app: AppHandle,
+    store: State<'_, Arc<ConfigStore>>,
+    patch: ConfigDto,
+) -> Result<ConfigDto, String> {
+    let (_previous, updated) = apply_config_patch(&store, &patch)?;
+    restart_pipeline(&app, &store);
+    Ok(updated.into())
+}
+
 // ---------- 截图与识别 ----------
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn start_snip(snip: State<'_, SnipManager>) -> Result<(), String> {
     snip.start()
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn cancel_snip(snip: State<'_, SnipManager>) -> Result<(), String> {
     snip.cancel();
     Ok(())
 }
 
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn confirm_snip(snip: State<'_, SnipManager>, rect: SnipRect) -> Result<(), String> {
     snip.confirm(rect)
+}
+
+/// Android 桩：选区截图链路不存在，前端改走选图。
+/// Android stubs: the snip flow doesn't exist; the frontend picks images instead.
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn start_snip() -> Result<(), String> {
+    Err("移动端不支持截图选区，请选择图片识别".to_string())
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn cancel_snip() -> Result<(), String> {
+    Err("移动端不支持截图选区，请选择图片识别".to_string())
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn confirm_snip(_rect: serde_json::Value) -> Result<(), String> {
+    Err("移动端不支持截图选区，请选择图片识别".to_string())
 }
 
 #[tauri::command]
@@ -169,20 +219,22 @@ pub fn recognize_image_path(
 }
 
 #[tauri::command]
-pub fn copy_text(text: String) -> Result<(), String> {
-    use crate::clipboard::{ArboardClipboard, Clipboard};
-    ArboardClipboard.copy_text(&text).map_err(|e| e.to_string())
+pub fn copy_text(app: AppHandle, text: String) -> Result<(), String> {
+    use crate::clipboard::{Clipboard, PlatformClipboard};
+    PlatformClipboard::new(app)
+        .copy_text(&text)
+        .map_err(|e| e.to_string())
 }
 
 /// 复制 MathML：以 `text/html` 剪贴板格式承载（Word 粘贴即公式），纯文本兜底。
 /// Copies MathML via the `text/html` clipboard format (Word pastes it as an
 /// equation), with plain text as the fallback.
 #[tauri::command]
-pub fn copy_mathml(mathml: String, plain: String) -> Result<(), String> {
-    use crate::clipboard::{ArboardClipboard, Clipboard};
+pub fn copy_mathml(app: AppHandle, mathml: String, plain: String) -> Result<(), String> {
+    use crate::clipboard::{Clipboard, PlatformClipboard};
     let html =
         format!(r#"<html><body><!--StartFragment-->{mathml}<!--EndFragment--></body></html>"#);
-    ArboardClipboard
+    PlatformClipboard::new(app)
         .copy_html(&html, &plain)
         .map_err(|e| e.to_string())
 }
@@ -305,11 +357,12 @@ fn e_to_string(e: &crate::error::HistoryError) -> String {
     e.to_string()
 }
 
-// ---------- 应用更新 ----------
+// ---------- 应用更新（仅桌面；Android 走应用商店 / 直接下载 APK） ----------
 
 /// 检查更新：静默模式（启动时）失败静默，手动模式带 10 秒超时与分类错误。
 /// Checks for updates: silent mode (startup) fails quietly; manual mode carries a
 /// 10s timeout and categorized errors. `mode` 保留给调用方语义区分，核心行为一致。
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn check_update(
     app: AppHandle,
@@ -324,6 +377,7 @@ pub async fn check_update(
 
 /// 下载并安装更新（就地更新；识别进行中拒绝）。
 /// Downloads and installs the update (in place; refused while recognizing).
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub async fn install_update(
     app: AppHandle,
@@ -335,6 +389,7 @@ pub async fn install_update(
 
 /// 从 updater endpoint 推导发布页地址（外部引导更新用）。
 /// Derives the releases page URL from the updater endpoint (for external-tier updates).
+#[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn get_releases_url(app: AppHandle) -> String {
     app.config()
@@ -353,6 +408,26 @@ pub fn get_releases_url(app: AppHandle) -> String {
         .unwrap_or_else(|| "https://github.com/your-name/freetex/releases".to_string())
 }
 
+/// Android 桩：更新走发布页直接下载 APK，无应用内更新。
+/// Android stubs: updates download APKs from the releases page, not in-app.
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn check_update() -> Result<serde_json::Value, String> {
+    Err("移动端请到发布页下载新版 APK".to_string())
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub async fn install_update() -> Result<(), String> {
+    Err("移动端请到发布页下载新版 APK".to_string())
+}
+
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn get_releases_url() -> String {
+    "https://github.com/cislunarspace/freetex/releases".to_string()
+}
+
 // ---------- 流水线装配 ----------
 
 /// 用当前配置重建流水线（save_config / 启动时共用）。
@@ -367,7 +442,7 @@ pub fn restart_pipeline(app: &AppHandle, store: &State<'_, Arc<ConfigStore>>) {
             app.clone(),
             controller.status_arc(),
         )),
-        clipboard: Arc::new(crate::clipboard::ArboardClipboard),
+        clipboard: Arc::new(crate::clipboard::PlatformClipboard::new(app.clone())),
         history: history.inner().clone(),
         engine_factory: Box::new(move || {
             let config = config_store.get();

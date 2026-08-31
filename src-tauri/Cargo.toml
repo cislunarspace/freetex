@@ -10,15 +10,14 @@ cc = "1.4.4"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
-tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "sync", "time", "rt-multi-thread"] }
 tracing = "0.1"
 anyhow = "1"
-reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "native-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "rustls-tls"] }
 dirs = "6"
 futures-util = "0.3"
 toml = "1"
@@ -28,12 +27,23 @@ fancy-regex = "0.19"
 thiserror = "2"
 sha2 = "0.11"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp"] }
-arboard = "3"
 rand = "0.10"
 ort = "=2.0.0-rc.12"  # 1.24.2 静态库 glibc 基线更老（rc.13 的 1.28 需 glibc>=2.38，排除 22.04）
-screenshots = "0.8"
 ndarray = "0.17"
+
+# 桌面专属依赖：托盘 / 更新 / 截屏 / arboard 剪贴板（Android 见下方 target 段）
+# Desktop-only deps: tray / updater / screenshots / arboard clipboard (Android in the target section below)
+[target.'cfg(not(target_os = "android"))'.dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
+screenshots = "0.8"
+arboard = "3"
+
+# Android：arboard 需 JNI 宿主环境，改走官方剪贴板插件
+# Android: arboard needs a JNI host; use the official clipboard plugin instead
+[target.'cfg(target_os = "android")'.dependencies]
+tauri-plugin-clipboard-manager = "2"
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = [

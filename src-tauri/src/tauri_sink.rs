@@ -29,9 +29,14 @@ impl TauriSink {
         Self { app, status }
     }
 
+    /// 识别成功/失败后重新显示主窗口（截图流程把它藏起来了）。
+    /// Re-shows the main window after success/failure (the snip flow hid it).
+    /// Android 无选区窗，主窗始终在前台，无需恢复。
+    /// On Android there is no snip window and the main window stays foreground.
     fn show_main(&self) {
         if let Some(main) = self.app.get_webview_window("main") {
             let _ = main.show();
+            #[cfg(not(target_os = "android"))]
             let _ = main.unminimize();
             let _ = main.set_focus();
         }

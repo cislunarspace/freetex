@@ -92,6 +92,9 @@ pub enum CaptureError {
     Image(#[from] image::ImageError),
 }
 
+/// 快捷键监听仅存在于桌面（Android 无全局热键）。
+/// Hotkey listening is desktop-only (Android has no global hotkeys).
+#[cfg(not(target_os = "android"))]
 #[derive(Debug, Error)]
 pub enum HotkeyError {
     #[error("热键启动失败：{0}")]
