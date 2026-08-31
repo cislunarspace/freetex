@@ -1,0 +1,17 @@
+# 忽略构建产物与本地开发资源
+# /target 锚定根目录，盖不住 src-tauri/target，因此用任意深度的 target/
+/target
+src-tauri/target
+frontend/dist
+frontend/node_modules
+
+# 本地开发用模型与测试图（不进仓库）
+/.dev
+
+# Tauri 生成物
+src-tauri/gen
+
+# 系统与编辑器
+.DS_Store
+Thumbs.db
+*.log

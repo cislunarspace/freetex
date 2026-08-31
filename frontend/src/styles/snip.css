@@ -1,0 +1,48 @@
+/* 截图选区窗：全屏半透明遮罩 + 选区框。 */
+/* Snip window: fullscreen scrim + selection rectangle. */
+
+.snip-body {
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.snip-root {
+  position: fixed;
+  inset: 0;
+  cursor: crosshair;
+  background: rgba(10, 14, 20, 0.18);
+  user-select: none;
+}
+
+.snip-hint {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(15, 22, 30, 0.78);
+  color: #fff;
+  font-size: 13px;
+  pointer-events: none;
+}
+
+.snip-rect {
+  position: absolute;
+  border: 2px solid #17b3a2;
+  background: rgba(23, 179, 162, 0.08);
+  box-shadow: 0 0 0 100000px rgba(10, 14, 20, 0.35);
+}
+
+.snip-size {
+  position: absolute;
+  top: -26px;
+  left: 0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(15, 22, 30, 0.85);
+  color: #fff;
+  font-size: 12px;
+  white-space: nowrap;
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "主窗与截图窗的默认能力",
+  "windows": ["main", "snip"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-set-focus",
+    "core:window:allow-set-size",
+    "core:window:allow-set-position",
+    "core:window:allow-scale-factor",
+    "core:window:allow-primary-monitor",
+    "core:window:allow-current-monitor",
+    "core:event:default",
+    "dialog:default"
+  ]
+}

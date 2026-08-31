@@ -1,0 +1,54 @@
+[package]
+name = "freetex"
+version = "1.0.0"
+description = "开源桌面公式识别工具：截图 / 粘贴图片，本地识别为 LaTeX"
+authors = ["freetex contributors"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["macros", "sync", "time", "rt-multi-thread"] }
+tracing = "0.1"
+anyhow = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "native-tls"] }
+dirs = "6"
+futures-util = "0.3"
+toml = "1"
+uuid = { version = "1", features = ["v4"] }
+regex = "1"
+fancy-regex = "0.19"
+thiserror = "2"
+sha2 = "0.11"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp"] }
+arboard = "3"
+rand = "0.10"
+ort = "2.0.0-rc.13"
+screenshots = "0.8"
+ndarray = "0.17"
+tauri-plugin-updater = "2"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = [
+  "Win32_Foundation",
+  "Win32_System_Threading",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lib]
+name = "freetex_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "freetex"
+path = "src/main.rs"

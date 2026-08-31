@@ -1,0 +1,34 @@
+# freetex 配置模板
+# freetex config template.
+#
+# 实际配置位于 ~/.config/freetex/freetex.toml（Windows: %APPDATA%/freetex/freetex.toml）。
+# The live config lives at ~/.config/freetex/freetex.toml (Windows: %APPDATA%/freetex/freetex.toml).
+# 所有字段都有默认值，缺省即用默认。
+# Every field defaults; a partial file is fine.
+
+[snip]
+# 触发截图的快捷键（单键）。可选值见设置页下拉：
+# F1..F12, PrintScreen, Insert, Delete, Home, End, PageUp, PageDown, Alt_R, Control_R, Shift_R
+# Snip hotkey (single key). See the settings dropdown for choices.
+hotkey = "F9"
+
+# 识别完成后自动把结果写入剪贴板
+# Copy the result to the clipboard automatically
+auto_copy = true
+
+# 自动复制的包装格式：latex | display_math | inline_math
+# Wrapper format for auto-copy: latex | display_math | inline_math
+copy_format = "latex"
+
+# 截图期间隐藏主窗口
+# Hide the main window while snipping
+hide_main_during_snip = true
+
+[engine]
+# 内置模型名（latex-ocr）或自定义模型目录
+# Built-in model name (latex-ocr) or a custom model directory
+model = "latex-ocr"
+
+# 推理线程数，0 = 自动取满核
+# Inference threads, 0 = all cores
+num_threads = 0
