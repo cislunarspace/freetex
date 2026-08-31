@@ -182,9 +182,75 @@ jobs:
             src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi.zip*
           if-no-files-found: warn
 
+  build-android:
+    name: Build Android APK (arm64)
+    needs: test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: aarch64-linux-android
+          workspaces: src-tauri -> target
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      # runner 预装 Android SDK；补装 Tauri 2 所需的 NDK 与 platform
+      # The runner ships the Android SDK; add the NDK and platform Tauri 2 needs
+      - name: Install NDK
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install "ndk;27.2.12479018" "platforms;android-34" > /dev/null
+          echo "NDK_HOME=$ANDROID_HOME/ndk/27.2.12479018" >> "$GITHUB_ENV"
+
+      - name: 解码签名 keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" ]]; then
+            echo "错误：缺少 secret ANDROID_KEYSTORE_BASE64（keystore 文件的 base64）" >&2
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$PWD/keystore.jks"
+
+      # aarch64 静态链接 onnxruntime（ort 预编译库），无需额外原生依赖
+      # aarch64 statically links onnxruntime (ort prebuilts); no extra native deps
+      - name: 构建签名 APK
+        run: npm --prefix frontend exec -- tauri android build --apk --target aarch64
+        env:
+          TAURI_ANDROID_KEYSTORE_FILE: ${{ github.workspace }}/keystore.jks
+          TAURI_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          TAURI_ANDROID_KEY_ALIAS: freetex
+          TAURI_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+
+      - name: 上传 Android 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: freetex-android-arm64-apk
+          path: src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk
+          if-no-files-found: error
+
   release:
     name: Create Release
-    needs: [build-linux, build-windows]
+    needs: [build-linux, build-windows, build-android]
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -213,8 +279,9 @@ jobs:
           mapfile -t appimages < <(find release-assets -type f -name '*.AppImage' | sort)
           mapfile -t exes < <(find release-assets -type f -name '*-setup.exe' | sort)
           mapfile -t msis < <(find release-assets -type f -name '*.msi' | sort)
-          if [[ "${#debs[@]}" -ne 2 || "${#rpms[@]}" -ne 2 || "${#appimages[@]}" -ne 2 || "${#exes[@]}" -ne 2 || "${#msis[@]}" -ne 2 ]]; then
-            echo "错误：预期两份 deb、两份 rpm、两份 AppImage、两份 exe 和两份 msi（x64 与 arm64 各一份），实际为 ${#debs[@]} 份 deb、${#rpms[@]} 份 rpm、${#appimages[@]} 份 AppImage、${#exes[@]} 份 exe、${#msis[@]} 份 msi" >&2
+          mapfile -t apks < <(find release-assets -type f -name '*.apk' | sort)
+          if [[ "${#debs[@]}" -ne 2 || "${#rpms[@]}" -ne 2 || "${#appimages[@]}" -ne 2 || "${#exes[@]}" -ne 2 || "${#msis[@]}" -ne 2 || "${#apks[@]}" -ne 1 ]]; then
+            echo "错误：预期两份 deb、两份 rpm、两份 AppImage、两份 exe、两份 msi 和一份 APK（arm64），实际为 ${#debs[@]} 份 deb、${#rpms[@]} 份 rpm、${#appimages[@]} 份 AppImage、${#exes[@]} 份 exe、${#msis[@]} 份 msi、${#apks[@]} 份 apk" >&2
             find release-assets -type f | sort >&2
             exit 1
           fi
@@ -223,7 +290,7 @@ jobs:
       - name: Generate checksums
         run: |
           cd release-assets
-          find . -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*-setup.exe' -o -name '*.msi' \) -print0 | sort -z | xargs -0 sha256sum > ../checksums.txt
+          find . -type f \( -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' -o -name '*-setup.exe' -o -name '*.msi' -o -name '*.apk' \) -print0 | sort -z | xargs -0 sha256sum > ../checksums.txt
           cd ..
           cat checksums.txt
 
@@ -250,5 +317,6 @@ jobs:
             release-assets/**/*.msi
             release-assets/**/*.msi.zip
             release-assets/**/*.msi.zip.sig
+            release-assets/**/*.apk
             checksums.txt
             release-assets/latest.json

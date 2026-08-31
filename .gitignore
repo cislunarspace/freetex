@@ -8,8 +8,10 @@ frontend/node_modules
 # 本地开发用模型与测试图（不进仓库）
 /.dev
 
-# Tauri 生成物
-src-tauri/gen
+# Tauri 生成物：gen/android 需提交（含签名配置与清单自定义，官方推荐），
+# 工程内部 .gitignore 已排除 build/ 与本机路径文件
+# Tauri generated: gen/android stays committed (official recommendation; its
+# inner .gitignore excludes build outputs and machine-local files)
 
 # 系统与编辑器
 .DS_Store
