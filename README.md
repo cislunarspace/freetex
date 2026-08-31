@@ -28,7 +28,7 @@ Grab the package for your platform from [Releases](https://github.com/cislunarsp
 | Platform | Package |
 |---|---|
 | Windows x64 / arm64 | `*-setup.exe` or `.msi` |
-| Linux x64 / arm64 | `.deb` / `.rpm` / `.AppImage` |
+| Linux x64 / arm64 | `.deb` / `.rpm` / `.AppImage` (Ubuntu 22.04 / 24.04 / 26.04 and comparable distros) |
 
 On first launch, download the recognition model (~180 MB, one time) on the **Settings** page.
 

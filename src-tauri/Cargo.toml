@@ -29,7 +29,7 @@ sha2 = "0.11"
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp"] }
 arboard = "3"
 rand = "0.10"
-ort = "2.0.0-rc.13"
+ort = "=2.0.0-rc.12"  # 1.24.2 静态库 glibc 基线更老（rc.13 的 1.28 需 glibc>=2.38，排除 22.04）
 screenshots = "0.8"
 ndarray = "0.17"
 tauri-plugin-updater = "2"

@@ -185,7 +185,7 @@ jobs:
   release:
     name: Create Release
     needs: [build-linux, build-windows]
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:

@@ -28,7 +28,7 @@
 | 平台 | 包 |
 |---|---|
 | Windows x64 / arm64 | `*-setup.exe` 或 `.msi` |
-| Linux x64 / arm64 | `.deb` / `.rpm` / `.AppImage` |
+| Linux x64 / arm64 | `.deb` / `.rpm` / `.AppImage`（Ubuntu 22.04 / 24.04 / 26.04 及同版本发行版） |
 
 安装后首次启动，到 **设置** 页下载识别模型（约 180 MB，仅需一次）。
 
