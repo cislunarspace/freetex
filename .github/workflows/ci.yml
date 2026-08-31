@@ -54,4 +54,6 @@ jobs:
       - name: 单元测试
         run: cargo test --manifest-path=src-tauri/Cargo.toml --lib
       - name: 构建 NSIS 安装包
-        run: npm --prefix frontend exec -- tauri build --bundles nsis
+        # CI 只做打包回归检查：关闭 updater 产物，避免要求签名私钥
+        # CI only checks packaging: disable updater artifacts so no signing key is needed
+        run: npm --prefix frontend exec -- tauri build --bundles nsis --config '{"bundle":{"createUpdaterArtifacts":false}}'
