@@ -40,6 +40,9 @@ use tauri::Manager;
 
 /// 装配并运行 Tauri 应用。
 /// Assembles and runs the Tauri app.
+/// mobile_entry_point：Android/iOS 上导出 JNI 入口符号给宿主 Activity。
+/// mobile_entry_point exports the JNI entry symbol for the host Activity.
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let builder = tauri::Builder::default().plugin(tauri_plugin_dialog::init());
 

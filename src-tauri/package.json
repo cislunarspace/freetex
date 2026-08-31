@@ -1,0 +1,7 @@
+{
+  "name": "freetex-android-shell",
+  "private": true,
+  "scripts": {
+    "tauri": "npx --prefix ../frontend tauri"
+  }
+}
