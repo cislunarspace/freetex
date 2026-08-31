@@ -4,6 +4,10 @@
 import { useEffect, useState } from "react";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
+/** 是否移动端（Android/iOS WebView）。UA 判断在 WebView 场景足够可靠。
+ * Whether this is mobile (Android/iOS WebView); UA sniffing is reliable in a WebView. */
+export const IS_MOBILE = /Android|iPhone|iPad/i.test(navigator.userAgent);
+
 export function useTauriEvent<T>(event: string, initial: T): T {
   const [state, setState] = useState<T>(initial);
   useEffect(() => {

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Camera, SquareDashed } from "lucide-react";
 import { useTranslation } from "../i18n";
-import { useStatus, type RecognitionResult } from "../hooks/useTauri";
+import { useStatus, IS_MOBILE, type RecognitionResult } from "../hooks/useTauri";
 import { renderLatex, renderMathml } from "../katex";
 
 type CopyKind = "latex" | "inline" | "display" | "mathml";
@@ -99,10 +99,14 @@ export default function Home() {
   return (
     <div className="home">
       <div className="home-actions">
-        <button className="btn primary" onClick={startSnip}>
-          <Camera size={16} />
-          {t("snipButton")}
-        </button>
+        {/* 移动端无全局截图，只保留选图入口
+            Mobile has no global snip; only the image-picking entry stays */}
+        {!IS_MOBILE && (
+          <button className="btn primary" onClick={startSnip}>
+            <Camera size={16} />
+            {t("snipButton")}
+          </button>
+        )}
         <button
           className="btn"
           onClick={() => fileInput.current?.click()}
@@ -161,10 +165,12 @@ export default function Home() {
             ) : (
               <div className="placeholder">
                 <p>
-                  {t("dropHere")}{" "}
+                  {IS_MOBILE ? t("dropHereMobile") : t("dropHere")}{" "}
                   <a onClick={() => fileInput.current?.click()}>{t("clickUpload")}</a>
                 </p>
-                <p className="muted">{t("snipHotkeyHint", { key: "F9" })}</p>
+                {!IS_MOBILE && (
+                  <p className="muted">{t("snipHotkeyHint", { key: "F9" })}</p>
+                )}
               </div>
             )}
           </section>

@@ -459,3 +459,84 @@ a {
   padding: 8px 10px;
   font-family: inherit;
 }
+
+/* ---------- 移动端（窄屏）：侧栏变底部导航，内容单列 ---------- */
+/* Mobile (narrow screens): sidebar becomes a bottom tab bar, single column */
+
+@media (max-width: 640px) {
+  .app-shell {
+    flex-direction: column;
+  }
+
+  /* 导航排到内容下方（底部 tab bar）
+     nav goes below the content (bottom tab bar) */
+  .sidebar {
+    order: 2;
+    width: 100%;
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 8px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    border-right: none;
+    border-top: 1px solid var(--border);
+  }
+
+  .brand {
+    padding: 0 4px 0 2px;
+  }
+
+  .brand-name {
+    display: none;
+  }
+
+  .sidebar nav {
+    flex-direction: row;
+    flex: 1;
+    justify-content: space-around;
+  }
+
+  .nav-item {
+    flex-direction: column;
+    gap: 2px;
+    font-size: 11px;
+    padding: 7px 12px;
+  }
+
+  .sidebar-footer {
+    display: none;
+  }
+
+  .content {
+    padding: 12px;
+    /* edge-to-edge：让出状态栏与手势条（Android WebView 需 viewport-fit=cover）
+       edge-to-edge: clear the status bar and gesture bar (needs viewport-fit=cover) */
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+    flex: 1;
+    min-height: 0;
+  }
+
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .preview {
+    max-height: 200px;
+  }
+
+  /* 触摸目标加大，按钮两两成行
+     bigger touch targets; copy buttons flow two per row */
+  .copy-row .btn {
+    flex: 1 1 40%;
+    justify-content: center;
+    padding: 10px 12px;
+  }
+
+  .form-row {
+    flex-wrap: wrap;
+  }
+
+  .settings-page {
+    max-width: none;
+  }
+}

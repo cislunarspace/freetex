@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { invoke } from "@tauri-apps/api/core";
 import { Home, History, Settings as SettingsIcon } from "lucide-react";
 import { useTranslation } from "../i18n";
+import { IS_MOBILE } from "../hooks/useTauri";
 import type { ReactNode } from "react";
 
 export default function Layout({ children }: { children: ReactNode }) {
@@ -10,6 +11,9 @@ export default function Layout({ children }: { children: ReactNode }) {
   const [hasNewUpdate, setHasNewUpdate] = useState(false);
 
   useEffect(() => {
+    // 移动端无应用内更新（更新走发布页），跳过静默检查
+    // Mobile has no in-app update (updates come from the releases page); skip the silent check
+    if (IS_MOBILE) return;
     // 启动时静默检查更新（网络失败静默忽略，不打扰用户）
     // Silent update check at startup; network failures are ignored silently
     const silentCheck = async () => {

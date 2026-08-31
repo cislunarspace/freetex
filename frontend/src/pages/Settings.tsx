@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useTranslation } from "../i18n";
 import { useTheme, type Theme } from "../ThemeContext";
 import {
+  IS_MOBILE,
   useModelDownloadProgress,
   useModelDownloadFinished,
   useRefreshSignal,
@@ -172,26 +173,30 @@ export default function Settings() {
         )}
       </section>
 
-      <section className="panel">
-        <h2>{t("settingsHotkey")}</h2>
-        <div className="form-row">
-          <select
-            value={config.snip.hotkey}
-            onChange={(e) => patch((d) => (d.snip.hotkey = e.target.value))}
-          >
-            {SUPPORTED_HOTKEYS.map((key) => (
-              <option key={key} value={key}>
-                {key}
-              </option>
-            ))}
-          </select>
-          {backend && (
-            <span className="muted small">
-              {t("backend")}: {backend}
-            </span>
-          )}
-        </div>
-      </section>
+      {/* 移动端无全局快捷键，隐藏该面板
+          Mobile has no global hotkeys; the panel stays desktop-only */}
+      {!IS_MOBILE && (
+        <section className="panel">
+          <h2>{t("settingsHotkey")}</h2>
+          <div className="form-row">
+            <select
+              value={config.snip.hotkey}
+              onChange={(e) => patch((d) => (d.snip.hotkey = e.target.value))}
+            >
+              {SUPPORTED_HOTKEYS.map((key) => (
+                <option key={key} value={key}>
+                  {key}
+                </option>
+              ))}
+            </select>
+            {backend && (
+              <span className="muted small">
+                {t("backend")}: {backend}
+              </span>
+            )}
+          </div>
+        </section>
+      )}
 
       <section className="panel">
         <h2>{t("settingsOutput")}</h2>
@@ -259,14 +264,11 @@ interface UpdateCheckResult {
   supportTier: "in_place" | "external";
 }
 
-/** 更新卡片：手动检查 + 就地安装（NSIS/AppImage）或外部引导（deb/rpm）。 */
-/** Update card: manual check + in-place install (NSIS/AppImage) or external guidance (deb/rpm). */
+/** 更新卡片：移动端只留发布页链接；桌面端手动检查 + 就地安装（NSIS/AppImage）或外部引导（deb/rpm）。 */
+/** Update card: mobile shows just a releases-page link; desktop does manual check + in-place
+ * install (NSIS/AppImage) or external guidance (deb/rpm). */
 function UpdateCard() {
   const { t } = useTranslation();
-  const [checking, setChecking] = useState(false);
-  const [installing, setInstalling] = useState(false);
-  const [result, setResult] = useState<UpdateCheckResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [releasesUrl, setReleasesUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -274,6 +276,23 @@ function UpdateCard() {
       .then(setReleasesUrl)
       .catch(() => undefined);
   }, []);
+
+  if (IS_MOBILE) {
+    return (
+      <div className="update-card">
+        {releasesUrl && (
+          <a className="btn" href={releasesUrl} target="_blank" rel="noreferrer">
+            {t("gotoDownload")}
+          </a>
+        )}
+      </div>
+    );
+  }
+
+  const [checking, setChecking] = useState(false);
+  const [installing, setInstalling] = useState(false);
+  const [result, setResult] = useState<UpdateCheckResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const check = async () => {
     setChecking(true);
