@@ -155,20 +155,28 @@ export default function Settings() {
                 </button>
               )}
             </div>
-            {downloading && progress && progress.total > 0 && (
-              <div className="progress">
-                <div
-                  className="progress-bar"
-                  style={{
-                    width: `${Math.min(100, (progress.downloaded / progress.total) * 100)}%`,
-                  }}
-                />
-                <span className="muted small">
-                  {progress.fileName} · {(progress.downloaded / 1048576).toFixed(1)} /{" "}
-                  {(progress.total / 1048576).toFixed(1)} MB
-                </span>
-              </div>
-            )}
+            {downloading && progress && progress.total > 0 && (() => {
+              // 总体百分比优先；overall 不可用时退回单文件百分比
+              // overall percentage first; falls back to per-file when absent
+              const overallPct =
+                progress.overallTotal > 0
+                  ? Math.min(100, (progress.overallDownloaded / progress.overallTotal) * 100)
+                  : Math.min(100, (progress.downloaded / progress.total) * 100);
+              return (
+                <div className="progress">
+                  <div
+                    className="progress-bar"
+                    style={{ width: `${overallPct}%` }}
+                  />
+                  <span className="muted small">
+                    {progress.fileName}（{progress.fileIndex}/{progress.fileCount}）·{" "}
+                    {(progress.downloaded / 1048576).toFixed(1)} /{" "}
+                    {(progress.total / 1048576).toFixed(1)} MB · {overallPct.toFixed(0)}%
+                    {progress.source && ` · ${progress.source}`}
+                  </span>
+                </div>
+              );
+            })()}
           </>
         )}
       </section>

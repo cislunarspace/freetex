@@ -22,6 +22,16 @@ use std::path::{Path, PathBuf};
 pub const OFFICIAL_BASE_URL: &str =
     "https://github.com/RapidAI/RapidLaTeXOCR/releases/download/v0.0.0";
 
+/// 内置镜像基址（公共 gh 代理，国内可达；可用性可能波动，失败自动回退下一个源）。
+/// 前缀 + 完整 GitHub URL 的拼接形式，与 `base_urls()` 的 `base/{file}` 拼接兼容。
+/// Built-in mirrors (public gh proxies reachable from mainland China; availability
+/// may vary, failures fall through to the next base). Prefix + full GitHub URL form,
+/// compatible with the `base/{file}` join in `base_urls()`.
+pub const MIRROR_BASE_URLS: &[&str] = &[
+    "https://ghfast.top/https://github.com/RapidAI/RapidLaTeXOCR/releases/download/v0.0.0",
+    "https://gh-proxy.com/https://github.com/RapidAI/RapidLaTeXOCR/releases/download/v0.0.0",
+];
+
 /// 环境变量：覆盖模型下载基址（镜像优先）。
 /// Env var: overrides the model download base (mirror first).
 pub const MODEL_BASE_URL_ENV: &str = "FREETEX_MODEL_BASE_URL";
@@ -35,6 +45,10 @@ pub struct ModelFileSpec {
     pub name: &'static str,
     pub sha256: &'static str,
     pub min_size: u64,
+    /// 官方 Release 实测确切大小：用于跨文件总体进度，不依赖网络。
+    /// Exact size measured from the official Release; powers overall progress
+    /// without depending on the network.
+    pub size: u64,
 }
 
 /// latex-ocr 的四个文件（哈希来自官方 Release 实测）。
@@ -44,30 +58,54 @@ pub const MODEL_FILES: &[ModelFileSpec] = &[
         name: "encoder.onnx",
         sha256: "01bf5dc25539ca0cd5b1bd29296ea495977a6ba5f629dc4178277809d26e5e7d",
         min_size: 10_000_000,
+        size: 89008136,
     },
     ModelFileSpec {
         name: "decoder.onnx",
         sha256: "bd695497bf1b22279b7626f5916c79226e1e244c84355f8da7edfd2d921d0072",
         min_size: 10_000_000,
+        size: 50952726,
     },
     ModelFileSpec {
         name: "image_resizer.onnx",
         sha256: "e0b075c39700f64d50400f39c8fc186bbb3b5d84d31864008313f376603aca9d",
         min_size: 5_000_000,
+        size: 38967751,
     },
     ModelFileSpec {
         name: "tokenizer.json",
         sha256: "1dc27b18d6a518d0d5ff3f4bb7bd98521fe80ad39e5b2a246d4109f1bb9d5019",
         min_size: 1_000,
+        size: 24174,
     },
 ];
 
-/// 下载进度回调（跨文件累计字节）。
-/// Download progress callback (bytes accumulated across files).
-pub type ProgressFn<'a> = dyn FnMut(&str, u64, u64) + 'a;
+/// 下载进度快照：单文件 + 跨文件总体，source 为当前源 host。
+/// Download progress snapshot: per-file plus overall; `source` is the current host.
+pub struct DownloadProgress {
+    pub file: String,
+    /// 1 起始的文件序号。
+    /// 1-based file index.
+    pub file_index: usize,
+    pub file_count: usize,
+    /// 当前文件已下载 / 总字节（总字节未知时为 0）。
+    /// Current file downloaded / total bytes (total 0 when unknown).
+    pub downloaded: u64,
+    pub total: u64,
+    /// 全部文件累计已下载 / 总字节（总字节来自内置 size，不依赖网络）。
+    /// Overall downloaded / total bytes (totals come from built-in sizes, no network).
+    pub overall_downloaded: u64,
+    pub overall_total: u64,
+    pub source: String,
+}
 
-/// 模型下载基址列表：env 覆盖优先，官方兜底。
-/// Download base URLs: env override first, official second.
+/// 下载进度回调（按快照上报）。
+/// Download progress callback (reports snapshots).
+pub type ProgressFn<'a> = dyn FnMut(&DownloadProgress) + 'a;
+
+/// 下载基址列表：env 覆盖优先，其次内置镜像（国内可达），官方兜底。
+/// Download base URLs: env override first, then built-in mirrors (mainland
+/// China reachable), official last.
 pub fn base_urls() -> Vec<String> {
     let mut urls = Vec::new();
     if let Ok(custom) = std::env::var(MODEL_BASE_URL_ENV) {
@@ -76,6 +114,7 @@ pub fn base_urls() -> Vec<String> {
             urls.push(custom);
         }
     }
+    urls.extend(MIRROR_BASE_URLS.iter().map(|s| s.to_string()));
     urls.push(OFFICIAL_BASE_URL.to_string());
     urls
 }
@@ -139,16 +178,37 @@ pub fn download_model(model_dir: &Path, on_progress: &mut ProgressFn) -> Result<
     std::fs::create_dir_all(model_dir)?;
     let bases = base_urls();
     let client = reqwest::blocking::Client::builder()
+        // 连接 15 秒建不起来就换下一个源，避免在不可达源上干等
+        // give up connecting after 15s and move on to the next source
+        .connect_timeout(std::time::Duration::from_secs(15))
         .timeout(std::time::Duration::from_secs(600))
         .build()
         .map_err(|e| ModelError::Download(e.to_string()))?;
 
-    for spec in MODEL_FILES {
+    let file_count = MODEL_FILES.len();
+    let overall_total: u64 = MODEL_FILES.iter().map(|f| f.size).sum();
+    let mut done_bytes: u64 = 0;
+
+    for (index, spec) in MODEL_FILES.iter().enumerate() {
         if file_ready(model_dir, spec) {
             tracing::info!(file = spec.name, "模型文件已就绪，跳过下载");
             continue;
         }
-        download_file(&client, &bases, model_dir, spec, on_progress)?;
+        let file_index = index + 1;
+        let mut on_file_progress = |downloaded: u64, total: u64, source: &str| {
+            on_progress(&DownloadProgress {
+                file: spec.name.to_string(),
+                file_index,
+                file_count,
+                downloaded,
+                total,
+                overall_downloaded: done_bytes + downloaded,
+                overall_total,
+                source: source.to_string(),
+            });
+        };
+        download_file(&client, &bases, model_dir, spec, &mut on_file_progress)?;
+        done_bytes += spec.size;
     }
     Ok(())
 }
@@ -161,7 +221,7 @@ fn download_file(
     bases: &[String],
     model_dir: &Path,
     spec: &ModelFileSpec,
-    on_progress: &mut ProgressFn,
+    on_progress: &mut dyn FnMut(u64, u64, &str),
 ) -> Result<(), ModelError> {
     let target = model_dir.join(spec.name);
     let tmp = model_dir.join(format!("{}.tmp", spec.name));
@@ -170,8 +230,8 @@ fn download_file(
     for attempt in 0..3 {
         for base in bases {
             let url = format!("{base}/{}", spec.name);
-            on_progress(spec.name, 0, 0);
-            match download_to(client, &url, &tmp, spec.name, on_progress) {
+            on_progress(0, 0, host_of(base));
+            match download_to(client, &url, &tmp, host_of(base), on_progress) {
                 Ok(()) => match file_sha256(&tmp) {
                     Ok(hash) if hash == spec.sha256 => {
                         std::fs::rename(&tmp, &target)?;
@@ -207,8 +267,8 @@ fn download_to(
     client: &reqwest::blocking::Client,
     url: &str,
     tmp: &Path,
-    label: &str,
-    on_progress: &mut ProgressFn,
+    source: &str,
+    on_progress: &mut dyn FnMut(u64, u64, &str),
 ) -> Result<(), String> {
     let mut resp = client
         .get(url)
@@ -232,7 +292,7 @@ fn download_to(
         // throttle progress to every 512 KiB to avoid event storms
         if downloaded - last_report >= 512 * 1024 || downloaded == total {
             last_report = downloaded;
-            on_progress(label, downloaded, total);
+            on_progress(downloaded, total, source);
         }
     }
     file.flush().map_err(|e| e.to_string())?;
@@ -240,6 +300,18 @@ fn download_to(
         return Err(format!("下载不完整：{downloaded}/{total} 字节"));
     }
     Ok(())
+}
+
+/// 从基址提取 host 作为进度事件里的源标识（镜像 URL 前缀拼接形式同样适用）。
+/// Extracts the host from a base URL as the source label (works for the
+/// mirror prefix + full-URL form too).
+fn host_of(base: &str) -> &str {
+    base.split("://")
+        .nth(1)
+        .unwrap_or(base)
+        .split('/')
+        .next()
+        .unwrap_or(base)
 }
 
 #[cfg(test)]

@@ -41,6 +41,14 @@ export interface ModelDownloadProgress {
   fileName: string;
   downloaded: number;
   total: number;
+  /** 1 起始的文件序号与总数。 */
+  fileIndex: number;
+  fileCount: number;
+  /** 全部文件累计字节（总体进度条用）。 */
+  overallDownloaded: number;
+  overallTotal: number;
+  /** 当前下载源 host（如 ghfast.top）。 */
+  source: string;
 }
 
 export interface ModelDownloadFinished {

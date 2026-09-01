@@ -287,13 +287,18 @@ pub fn download_model(app: AppHandle, name: String) -> Result<(), String> {
     std::thread::Builder::new()
         .name("freetex-model-download".into())
         .spawn(move || {
-            let mut progress = |file: &str, downloaded: u64, total: u64| {
+            let mut progress = |p: &model::DownloadProgress| {
                 let _ = app.emit(
                     "model-download-progress",
                     serde_json::json!({
-                        "fileName": file,
-                        "downloaded": downloaded,
-                        "total": total,
+                        "fileName": p.file,
+                        "downloaded": p.downloaded,
+                        "total": p.total,
+                        "fileIndex": p.file_index,
+                        "fileCount": p.file_count,
+                        "overallDownloaded": p.overall_downloaded,
+                        "overallTotal": p.overall_total,
+                        "source": p.source,
                     }),
                 );
             };
