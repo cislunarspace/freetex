@@ -2,7 +2,7 @@
 
 本文件记录 freetex 的显著变更。格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本遵循语义化版本。
 
-## Unreleased
+## v1.0.1 - 2026-09-01
 
 ### 新增
 

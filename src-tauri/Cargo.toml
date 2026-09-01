@@ -1,6 +1,6 @@
 [package]
 name = "freetex"
-version = "1.0.0"
+version = "1.0.1"
 description = "开源桌面公式识别工具：截图 / 粘贴图片，本地识别为 LaTeX"
 authors = ["freetex contributors"]
 edition = "2021"

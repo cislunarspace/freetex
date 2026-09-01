@@ -17,3 +17,6 @@ frontend/node_modules
 .DS_Store
 Thumbs.db
 *.log
+
+# 本地产物（测试用 APK 拷贝）
+/*.apk
