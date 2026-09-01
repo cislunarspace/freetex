@@ -241,11 +241,19 @@ jobs:
           TAURI_ANDROID_KEY_ALIAS: freetex
           TAURI_ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
 
+      # 与桌面产物命名风格统一：freetex_<ver>_android_arm64.apk
+      # align with desktop naming: freetex_<ver>_android_arm64.apk
+      - name: 重命名 APK
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          APK=$(find src-tauri/gen/android/app/build/outputs/apk -path '*/release/*.apk' | head -1)
+          mv "$APK" "freetex_${VERSION}_android_arm64.apk"
+
       - name: 上传 Android 产物
         uses: actions/upload-artifact@v4
         with:
           name: freetex-android-arm64-apk
-          path: src-tauri/gen/android/app/build/outputs/apk/*/release/*.apk
+          path: freetex_*_android_arm64.apk
           if-no-files-found: error
 
   release:
